@@ -292,6 +292,20 @@ const App: React.FC = () => {
     setConfig(c => ({ ...c, budgetRanges: (c.budgetRanges || []).filter(r => r.id !== id) }));
   };
 
+  // Bid range helpers (for bid increment tiers)
+  const addBidRange = () => {
+    const next: BidRange = { id: Date.now().toString(), min: 0, max: null, increment: 1000 };
+    setConfig(c => ({ ...c, bidRanges: [...c.bidRanges, next] }));
+  };
+
+  const updateBidRange = (id: string, patch: Partial<BidRange>) => {
+    setConfig(c => ({ ...c, bidRanges: c.bidRanges.map(r => r.id === id ? { ...r, ...patch } : r) }));
+  };
+
+  const removeBidRange = (id: string) => {
+    setConfig(c => ({ ...c, bidRanges: c.bidRanges.filter(r => r.id !== id) }));
+  };
+
   // Ref for hidden file input for importing players
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -573,6 +587,20 @@ const App: React.FC = () => {
                       </div>
                     ))}
                     <button onClick={addBudgetRange} className="mt-2 px-4 py-2 bg-white/5 border border-white/10 rounded-full text-[10px] font-black uppercase">Add Range</button>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-500 tracking-widest mb-3 block">Bid Ranges (min / max / increment)</label>
+                  <div className="space-y-3">
+                    {(config.bidRanges || []).map(r => (
+                      <div key={r.id} className="flex gap-2">
+                        <input type="number" value={r.min} onChange={e => updateBidRange(r.id, { min: Number(e.target.value) })} className="w-1/3 bg-black border border-white/10 rounded-2xl px-3 py-2 font-bold text-white outline-none" />
+                        <input type="number" value={r.max ?? 0} onChange={e => updateBidRange(r.id, { max: e.target.value === '' ? null : Number(e.target.value) })} className="w-1/3 bg-black border border-white/10 rounded-2xl px-3 py-2 font-bold text-white outline-none" />
+                        <input type="number" value={r.increment} onChange={e => updateBidRange(r.id, { increment: Number(e.target.value) })} className="w-1/3 bg-black border border-white/10 rounded-2xl px-3 py-2 font-bold text-white outline-none" />
+                        <button onClick={() => removeBidRange(r.id)} className="px-3 py-2 bg-red-500/10 text-red-500 rounded-2xl">Remove</button>
+                      </div>
+                    ))}
+                    <button onClick={addBidRange} className="mt-2 px-4 py-2 bg-white/5 border border-white/10 rounded-full text-[10px] font-black uppercase">Add Bid Range</button>
                   </div>
                 </div>
               </div>
