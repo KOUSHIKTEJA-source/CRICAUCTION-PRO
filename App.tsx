@@ -88,6 +88,7 @@ interface AuctionConfig {
   primaryColor: string;
   fontFamily: string;
   maxPlayersPerTeam: number;
+  defaultTeamBudget: number;
 }
 
 interface SyncData {
@@ -130,7 +131,8 @@ const App: React.FC = () => {
     timePerPlayer: 60,
     primaryColor: '#39FF14',
     fontFamily: 'Space Grotesk',
-    maxPlayersPerTeam: 15
+    maxPlayersPerTeam: 15,
+    defaultTeamBudget: 10000000
   });
 
   const [teams, setTeams] = useState<Team[]>(initialData?.teams || [
@@ -252,6 +254,85 @@ const App: React.FC = () => {
         setPlayers(prev => prev.map(p => p.id === playerId ? { ...p, image: base64String } : p));
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  // Ref for hidden file input for importing players
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Parse simple CSV -> players. Expect header line with columns: name,role,age,basePrice,image,verified
+  const parseCsvToPlayers = (csv: string): Player[] => {
+    const lines = csv.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+    if (lines.length === 0) return [];
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+    const out: Player[] = [];
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split(',').map(c => c.trim());
+      const obj: any = {};
+      for (let j = 0; j < headers.length; j++) {
+        obj[headers[j]] = cols[j] ?? '';
+      }
+      const p: Player = {
+        id: Date.now().toString() + Math.random().toString(36).slice(2,8),
+        name: obj.name || 'Unknown Player',
+        role: (['Batsman','Bowler','All-rounder','Wicketkeeper'].includes(obj.role) ? obj.role : 'Batsman') as PlayerRole,
+        age: Number(obj.age) || 20,
+        basePrice: Number(obj.baseprice || obj.basePrice || 10000) || 10000,
+        currentBid: 0,
+        status: 'Draft',
+        soldToId: null,
+        stats: { matches: Number(obj.matches) || 0, strikeRate: Number(obj.strikerate || obj.strikeRate) || 0 },
+        verified: (String(obj.verified || '').toLowerCase() === 'true'),
+        image: obj.image || ''
+      };
+      out.push(p);
+    }
+    return out;
+  };
+
+  const handleImportPlayersFile = async (e: React.ChangeEvent<HTMLInputElement> | File) => {
+    // Accept either an input event or a File passed directly
+    const file = (e as any).target ? (e as any).target.files?.[0] : (e as File);
+    if (!file) return;
+    try {
+      const text = await file.text();
+      let newPlayers: Player[] = [];
+      // Try JSON first
+      try {
+        const parsed = JSON.parse(text);
+        if (Array.isArray(parsed)) {
+          newPlayers = parsed.map((item: any) => ({
+            id: item.id || (Date.now().toString() + Math.random().toString(36).slice(2,8)),
+            name: item.name || 'Unknown',
+            role: (['Batsman','Bowler','All-rounder','Wicketkeeper'].includes(item.role) ? item.role : 'Batsman') as PlayerRole,
+            age: Number(item.age) || 20,
+            basePrice: Number(item.basePrice || item.base_price) || 10000,
+            currentBid: Number(item.currentBid) || 0,
+            status: item.status || 'Draft',
+            soldToId: item.soldToId || null,
+            stats: { matches: Number(item.matches) || 0, strikeRate: Number(item.strikeRate) || 0 },
+            verified: !!item.verified,
+            image: item.image || ''
+          }));
+        }
+      } catch (jsonErr) {
+        // Not JSON, try CSV
+        newPlayers = parseCsvToPlayers(text);
+      }
+
+      if (newPlayers.length === 0) {
+        alert('No players parsed from file. Ensure the file is valid JSON array or CSV with headers.');
+        return;
+      }
+
+      setPlayers(prev => [...prev, ...newPlayers]);
+      alert(`Imported ${newPlayers.length} players successfully.`);
+    } catch (err) {
+      console.error('Import error', err);
+      alert('Failed to import players. See console for details.');
+    } finally {
+      // reset input
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
