@@ -89,6 +89,7 @@ interface AuctionConfig {
   fontFamily: string;
   maxPlayersPerTeam: number;
   defaultTeamBudget: number;
+  budgetRanges?: BidRange[];
 }
 
 interface SyncData {
@@ -133,6 +134,11 @@ const App: React.FC = () => {
     fontFamily: 'Space Grotesk',
     maxPlayersPerTeam: 15,
     defaultTeamBudget: 10000000
+    ,budgetRanges: [
+      { id: 'b1', min: 0, max: 499999, increment: 50000 },
+      { id: 'b2', min: 500000, max: 1999999, increment: 100000 },
+      { id: 'b3', min: 2000000, max: null, increment: 250000 }
+    ]
   });
 
   const [teams, setTeams] = useState<Team[]>(initialData?.teams || [
@@ -255,6 +261,35 @@ const App: React.FC = () => {
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  // Budget helpers
+  const getBudgetIncrement = (currentBudget: number) => {
+    const ranges = config.budgetRanges || [];
+    const range = ranges.find(r => currentBudget >= r.min && (r.max === null || currentBudget <= r.max));
+    return range ? range.increment : Math.max(10000, Math.floor(currentBudget * 0.05));
+  };
+
+  const adjustTeamBudget = (teamId: string, dir: number) => {
+    setTeams(prev => prev.map(t => {
+      if (t.id !== teamId) return t;
+      const inc = getBudgetIncrement(t.budget);
+      const next = Math.max(0, t.budget + dir * inc);
+      return { ...t, budget: next };
+    }));
+  };
+
+  const addBudgetRange = () => {
+    const next: BidRange = { id: Date.now().toString(), min: 0, max: null, increment: 100000 };
+    setConfig(c => ({ ...c, budgetRanges: [...(c.budgetRanges || []), next] }));
+  };
+
+  const updateBudgetRange = (id: string, patch: Partial<BidRange>) => {
+    setConfig(c => ({ ...c, budgetRanges: (c.budgetRanges || []).map(r => r.id === id ? { ...r, ...patch } : r) }));
+  };
+
+  const removeBudgetRange = (id: string) => {
+    setConfig(c => ({ ...c, budgetRanges: (c.budgetRanges || []).filter(r => r.id !== id) }));
   };
 
   // Ref for hidden file input for importing players
@@ -519,6 +554,27 @@ const App: React.FC = () => {
                   <label className="text-[10px] font-black uppercase text-gray-500 tracking-widest mb-3 block">Max Squad Size</label>
                   <input type="number" value={config.maxPlayersPerTeam} onChange={e => setConfig({...config, maxPlayersPerTeam: Number(e.target.value)})} className="w-full bg-black border border-white/10 rounded-2xl px-5 py-4 font-bold text-white outline-none" />
                 </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-500 tracking-widest mb-3 block">Default Team Budget</label>
+                  <div className="flex gap-3">
+                    <input type="number" value={config.defaultTeamBudget} onChange={e => setConfig({...config, defaultTeamBudget: Number(e.target.value)})} className="w-full bg-black border border-white/10 rounded-2xl px-5 py-4 font-bold text-white outline-none" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-500 tracking-widest mb-3 block">Budget Ranges (min / max / increment)</label>
+                  <div className="space-y-3">
+                    {(config.budgetRanges || []).map(r => (
+                      <div key={r.id} className="flex gap-2">
+                        <input type="number" value={r.min} onChange={e => updateBudgetRange(r.id, { min: Number(e.target.value) })} className="w-1/3 bg-black border border-white/10 rounded-2xl px-3 py-2 font-bold text-white outline-none" />
+                        <input type="number" value={r.max ?? 0} onChange={e => updateBudgetRange(r.id, { max: e.target.value === '' ? null : Number(e.target.value) })} className="w-1/3 bg-black border border-white/10 rounded-2xl px-3 py-2 font-bold text-white outline-none" />
+                        <input type="number" value={r.increment} onChange={e => updateBudgetRange(r.id, { increment: Number(e.target.value) })} className="w-1/3 bg-black border border-white/10 rounded-2xl px-3 py-2 font-bold text-white outline-none" />
+                        <button onClick={() => removeBudgetRange(r.id)} className="px-3 py-2 bg-red-500/10 text-red-500 rounded-2xl">Remove</button>
+                      </div>
+                    ))}
+                    <button onClick={addBudgetRange} className="mt-2 px-4 py-2 bg-white/5 border border-white/10 rounded-full text-[10px] font-black uppercase">Add Range</button>
+                  </div>
+                </div>
               </div>
             </section>
             <button onClick={fullReset} className="w-full py-5 bg-red-500/10 text-red-500 border border-red-500/20 rounded-2xl font-black uppercase">Wipe Local Data</button>
@@ -526,15 +582,19 @@ const App: React.FC = () => {
 
           <div className="lg:col-span-8 space-y-12">
             <section className="space-y-6">
-              <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center">
                 <h3 className="text-xl font-black uppercase italic flex items-center gap-3"><Users size={20} style={{color: config.primaryColor}}/> Franchise List</h3>
-                <button onClick={() => setTeams([...teams, { id: Date.now().toString(), name: 'New Team', budget: 10000000, spent: 0 }])} className="px-5 py-2 bg-white/5 border border-white/10 rounded-full text-[10px] font-black uppercase">Add Team</button>
+                <button onClick={() => setTeams([...teams, { id: Date.now().toString(), name: 'New Team', budget: config.defaultTeamBudget, spent: 0 }])} className="px-5 py-2 bg-white/5 border border-white/10 rounded-full text-[10px] font-black uppercase">Add Team</button>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {teams.map(team => (
                   <div key={team.id} className="p-8 bg-[#0d0d0d] border border-white/5 rounded-[2.5rem] relative group">
                     <input type="text" value={team.name} onChange={e => setTeams(teams.map(t => t.id === team.id ? {...t, name: e.target.value} : t))} className="bg-transparent text-2xl font-black italic uppercase outline-none mb-4 w-full" />
-                    <input type="number" value={team.budget} onChange={e => setTeams(teams.map(t => t.id === team.id ? {...t, budget: Number(e.target.value)} : t))} className="bg-white/5 px-4 py-2 rounded-xl text-sm font-black outline-none w-full" />
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => adjustTeamBudget(team.id, -1)} className="px-3 py-2 bg-white/5 rounded-2xl">-</button>
+                      <input type="number" value={team.budget} onChange={e => setTeams(teams.map(t => t.id === team.id ? {...t, budget: Number(e.target.value)} : t))} className="flex-1 bg-white/5 px-4 py-2 rounded-xl text-sm font-black outline-none" />
+                      <button onClick={() => adjustTeamBudget(team.id, +1)} className="px-3 py-2 bg-white/5 rounded-2xl">+</button>
+                    </div>
                     <button onClick={() => setTeams(teams.filter(t => t.id !== team.id))} className="absolute top-6 right-6 p-2 text-red-500 opacity-0 group-hover:opacity-100"><Trash2 size={16}/></button>
                   </div>
                 ))}
@@ -544,7 +604,11 @@ const App: React.FC = () => {
             <section className="space-y-6">
               <div className="flex justify-between items-center">
                 <h3 className="text-xl font-black uppercase italic flex items-center gap-3"><Gavel size={20} style={{color: config.primaryColor}}/> Players</h3>
-                <button onClick={() => setPlayers([...players, { id: Date.now().toString(), name: 'New Player', role: 'Batsman', age: 20, basePrice: 10000, currentBid: 0, status: 'Draft', soldToId: null, stats: { matches: 0, strikeRate: 0 }, verified: false, image: '' }])} className="px-5 py-2 bg-white text-black rounded-full text-[10px] font-black uppercase">Add Player</button>
+                <div className="flex items-center gap-3">
+                  <button onClick={() => setPlayers([...players, { id: Date.now().toString(), name: 'New Player', role: 'Batsman', age: 20, basePrice: 10000, currentBid: 0, status: 'Draft', soldToId: null, stats: { matches: 0, strikeRate: 0 }, verified: false, image: '' }])} className="px-5 py-2 bg-white text-black rounded-full text-[10px] font-black uppercase">Add Player</button>
+                  <button onClick={() => fileInputRef.current?.click()} className="px-5 py-2 bg-white/5 border border-white/10 rounded-full text-[10px] font-black uppercase">Import Players</button>
+                  <input ref={fileInputRef} type="file" accept=".json,.csv" onChange={handleImportPlayersFile as any} style={{ display: 'none' }} />
+                </div>
               </div>
               <div className="grid grid-cols-1 gap-5">
                 {players.map(player => (
