@@ -1,0 +1,7 @@
+{
+  "name": "CricAuction Pro",
+  "description": "A bold, modern, and fully customizable cricket auction platform featuring real-time bidding, player management, and event analytics with a neon-dark aesthetic.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
