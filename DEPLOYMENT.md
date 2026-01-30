@@ -19,7 +19,6 @@
      ```
      VITE_SUPABASE_URL=https://jqsudxfexwxrxfldoqnv.supabase.co
      VITE_SUPABASE_ANON_KEY=sb_publishable_j_Nrgmh166yD2hjI03CzKw_JhRiyApx
-     VITE_GEMINI_API_KEY=your_gemini_api_key_here
      ```
 
 4. **Deploy**
